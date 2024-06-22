@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from fpdf import FPDF
 
 #Mes classes
-import Projet.datatbase.preparateDataset as pD
+import Projet.dataset.preparateDataset as pD
 
 
 class TrainingYolo:

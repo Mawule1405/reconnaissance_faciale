@@ -1,0 +1,12 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "DuckDB",
+            "database": "${workspaceFolder:projet_reconnaissance_faciale}/apprendre.db",
+            "name": "mathias",
+            "group": "mathias"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}

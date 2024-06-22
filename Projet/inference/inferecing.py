@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy as np
 import duckdb as db
 
-import Projet.dataset.databaseHandler as pdb
+from Projet.database.databaseHandler import DatabaseHandler
 
 class Inferencing:
 
@@ -15,10 +15,10 @@ class Inferencing:
     Classe contient des méthodes d'inférence
     """
 
-    def __init__(self, train_model_path: str, database: pdb.ProjetiaDatabase):
+    def __init__(self, train_model_path: str):
         self.train_model_path = train_model_path
         self.model = None
-        self.db = database
+        self.db = None
 
 
     def charging_model(self):
@@ -56,6 +56,8 @@ class Inferencing:
         Retourne:
         results: Les résultats de l'inférence.
         """
+        
+
         if self.model is None:
             print("Le modèle n'est pas chargé. Veuillez charger le modèle d'abord.")
             return None
@@ -68,7 +70,7 @@ class Inferencing:
             
             # Faire l'inférence
             results = self.model(image)
-
+            
             # Dessiner les résultats sur l'image
             for result in results:
                 for box in result.boxes:
@@ -85,13 +87,31 @@ class Inferencing:
                     label = f"{class_name} {confidence:.2f}%"
                     cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+                    #Enrégistrement des informations
+                    #Sauvegarde de la source
+                    db = DatabaseHandler()
+                    id_source = db.last_source_insert()+1
+                    name_source = image_path,
+                    type_source = "photo"
+                    db.insert_source(id_source, name_source, type_source)
+                    
+                    #id de la classe
+                    id_class = class_id
+
+                    #sauvegarde de la detection
+                    id_detecter = db.last_detection_insert() +1
+                    time_detection = datetime.now()
+                   
+                    
+                    db.insert_detection(id_detecter, id_class, id_source, time_detection, confidence)
+                   
             # Sauvegarder l'image annotée
             output_path = os.path.splitext(image_path)[0] + '_annotated.jpg'
             cv2.imwrite(output_path, image)
             
 
             return results
-        except Exception as e:
+        except IndentationError as e:
             print("Inférence a échoué.")
             print(f"Erreur: {e}")
             return None
@@ -126,6 +146,14 @@ class Inferencing:
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
+            #sauvegarde de la source
+            db = DatabaseHandler()
+            id_source = db.last_source_insert()+1
+            name_source = video_path,
+            type_source = "video"
+            db.insert_source(id_source, name_source, type_source)
+
+            id_detecter = db.last_detection_insert()+1
             while True:
                 ret, frame = cap.read()
                 if not ret:
@@ -133,7 +161,7 @@ class Inferencing:
 
                 # Faire l'inférence sur la frame
                 results = self.model(frame)
-
+            
                 # Dessiner les résultats sur la frame
                 for result in results:
                     for box in result.boxes:
@@ -151,6 +179,14 @@ class Inferencing:
                         label = f"{class_name} {confidence:.2f}%"
                         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+                        #id de la classe
+                        id_class = class_id
+
+                        #sauvegarde de la detection
+                        time_detection = datetime.now()
+                        db.insert_detection(id_detecter, id_class, id_source, time_detection, confidence)
+                        id_detecter +=1
+                    
                 # Ecrire la frame annotée dans la vidéo de sortie
                 out.write(frame)
 
@@ -158,7 +194,7 @@ class Inferencing:
             cap.release()
             out.release()
             print(f"Vidéo annotée sauvegardée à: {output_path}")
-
+            return id_source, output_path
         except Exception as e:
             print("Inférence a échoué.")
             print(f"Erreur: {e}")
@@ -185,7 +221,15 @@ class Inferencing:
             cap = cv2.VideoCapture(camera_index)
             if not cap.isOpened():
                 raise ValueError("La caméra n'a pas pu être ouverte. Vérifiez l'index de la caméra.")
+            
 
+            db = DatabaseHandler()
+            id_source = db.last_source_insert()+1
+            name_source = camera_index,
+            type_source = "camera"
+            db.insert_source(id_source, name_source, type_source)
+
+            id_detecter = db.last_detection_insert()+1
             while True:
                 ret, frame = cap.read()
                 if not ret:
@@ -212,6 +256,13 @@ class Inferencing:
                         label = f"{class_name} {confidence:.2f}%"
                         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+                        #id de la classe
+                        id_class = class_id
+
+                        #sauvegarde de la detection
+                        time_detection = datetime.now()
+                        db.insert_detection(id_detecter, id_class, id_source, time_detection, confidence)
+                        id_detecter +=1
                 # Afficher la frame annotée
                 cv2.imshow('Camera Inference', frame)
 
@@ -230,78 +281,5 @@ class Inferencing:
             return None
         
     
-    def inferecing_photo_2(self, image_path):
-        image = Image.open(image_path)
-        img_np = np.array(image)
-
-        results = self.model(img_np)
-
-        timestamp = datetime.now()
-        image_id = self.db.insert_image(image_path, results[0].orig_img, results[0].speed, timestamp)
-        self.db.insert_classes(results[0].names)
-        self.db.insert_boxes(image_id, results[0].boxes)
-
-        return results
-
-    def inferecing_video_2(self, video_path):
-        cap = cv2.VideoCapture(video_path)
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            img_np = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = self.model(img_np)
-
-            timestamp = datetime.now()
-            image_path = f"{video_path}_frame_{cap.get(cv2.CAP_PROP_POS_FRAMES)}"
-            image_id = self.db.insert_image(image_path, results[0].orig_img, results[0].speed, timestamp)
-            self.db.insert_classes(results[0].names)
-            self.db.insert_boxes(image_id, results[0].boxes)
-
-        cap.release()
-
-    def inferecing_camera_2(self, camera_index=0):
-        cap = cv2.VideoCapture(camera_index)
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            img_np = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = self.model(img_np)
-
-            timestamp = datetime.now()
-            image_path = f"camera_{camera_index}_frame_{cap.get(cv2.CAP_PROP_POS_FRAMES)}"
-            image_id = self.db.insert_image(image_path, results[0].orig_img, results[0].speed, timestamp)
-            self.db.insert_classes(results[0].names)
-            self.db.insert_boxes(image_id, results[0].boxes)
-
-        cap.release()
-
-
-if __name__ == '__main__':
-    db = pdb.ProjetiaDatabase()
-    yolo_inference = Inferencing('C:/Users/zakaria.gamane/Desktop/HELOU_KOMLAN_MAWULE/projet_professionnel/projet_reconnaissance_faciale/best.pt', db)
-    yolo_inference.charging_model()
-    # Exemple d'inférence sur une image
-    results = yolo_inference.inferecing_photo_2('WhatsApp Image 2024-06-19 at 18.50.09_4222c80d.jpg')
-    
-    """  with open("fichier.txt", "w") as f:
-        f.write(str(results[0].orig_img))"""
-
-    # Exemple d'inférence sur une vidéo
-    #yolo_inference.inferecing_video('path_to_video.mp4')
-
-    # Exemple d'inférence sur un flux de caméra
-    #yolo_inference.inferecing_camera(camera_index=0)
-
-    #Générer le rapport de fréquentation
-    res = db.generate_report()
-
-    print(res)
     
 
-    
