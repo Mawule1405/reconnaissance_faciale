@@ -199,12 +199,5 @@ class TrainingYolo:
         print("Le rapport d'entraînement a été généré sous la forme de training_report.pdf")
 
 
-if __name__ == "__main__":
-    model = TrainingYolo()
 
-    model.useDatasetYolo("dataset_games_of_trones",
-                         'Model/yolov8s.pt',
-                         10, 640, 50,'RESULTAT/', 'RUN/'
-                         )
-    model.trainingOfModelYolo()
     
